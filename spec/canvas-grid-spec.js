@@ -229,7 +229,7 @@ describe("CanvasGrid", () => {
       ],
       totalRows: null,
     });
-    const { grid } = current;
+    const { grid, context } = current;
 
     expect(grid.element.classList.contains("sqlite-view-grid")).toBe(true);
     expect(grid.element.children.length).toBe(4);
@@ -240,6 +240,7 @@ describe("CanvasGrid", () => {
     expect(grid.element.getAttribute("aria-busy")).toBe("true");
     expect(grid.canvas.width).toBe(480);
     expect(grid.canvas.height).toBe(200);
+    expect(context.calls.fillRect).not.toContain([0, 0, 240, 100]);
 
     grid.moveActiveSelectionTo(1, 1);
     expect(grid.ariaCell.getAttribute("aria-rowindex")).toBe("102");
