@@ -275,6 +275,19 @@ describe("CanvasGrid", () => {
     expect(grid.columnAtContentX(grid.columnStarts[1])).toBe(1);
   });
 
+  it("caches fitted visible text instead of measuring it on every draw", () => {
+    current = createGrid();
+    const { grid, context } = current;
+    spyOn(context, "measureText").and.callThrough();
+
+    const first = grid.fitText("a value that is wider than its cell", 30);
+    const measurements = context.measureText.calls.count();
+    const second = grid.fitText("a value that is wider than its cell", 30);
+
+    expect(second).toBe(first);
+    expect(context.measureText.calls.count()).toBe(measurements);
+  });
+
   it("reports the visible column tile with bounded overscan", () => {
     const ranges = [];
     current = createGrid({
