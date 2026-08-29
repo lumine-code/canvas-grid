@@ -112,6 +112,7 @@ function createGrid(options = {}) {
   const commands = commandHarness();
   let resizeDisconnected = false;
   const grid = new CanvasGrid({
+    document,
     columns: [
       { key: "a", label: "A", width: 60 },
       { key: "b", label: "B", width: 70 },
@@ -218,6 +219,43 @@ describe("CanvasGrid", () => {
   afterEach(() => {
     current?.grid.destroy();
     current = null;
+  });
+
+  it("rebinds DPI, animation and pointer capture to the destination document", () => {
+    const frame = document.createElement("iframe");
+    jasmine.attachToDOM(frame);
+    Object.defineProperty(frame.contentWindow, "devicePixelRatio", {
+      configurable: true,
+      value: 3,
+    });
+    current = createGrid({
+      getDevicePixelRatio: undefined,
+      resizeObserverFactory: undefined,
+    });
+    const { grid } = current;
+
+    grid.prepareSurfaceTransition();
+    frame.contentDocument.body.appendChild(grid.element);
+    grid.commitSurfaceTransition();
+    grid.resize(240, 100);
+    grid.handleMouseDown({
+      button: 0,
+      clientX: 90,
+      clientY: 50,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      preventDefault() {},
+    });
+    frame.contentWindow.dispatchEvent(new frame.contentWindow.MouseEvent("mouseup"));
+
+    expect(grid.element.ownerDocument).toBe(frame.contentDocument);
+    expect(grid.dpr).toBe(3);
+    expect(grid.dragWindow).toBeNull();
+    expect(grid.dragging).toBe(false);
+    grid.destroy();
+    current = null;
+    frame.remove();
   });
 
   it("uses a fixed DOM, a DPR-sized canvas, and an accessible active-cell mirror", () => {
