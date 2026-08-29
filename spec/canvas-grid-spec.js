@@ -214,12 +214,17 @@ describe("PagedRowCache", () => {
 });
 
 describe("CanvasGrid", () => {
-  let current;
+  let current, workspaceElement;
+
+  beforeEach(() => {
+    workspaceElement = lumine.views.getView(lumine.workspace);
+    jasmine.attachToDOM(workspaceElement);
+  });
 
   afterEach(() => {
     current?.grid.destroy();
     current = null;
-    lumine.views.getView(lumine.workspace).focus({ preventScroll: true });
+    workspaceElement.focus({ preventScroll: true });
   });
 
   it("rebinds DPI, animation and pointer capture to the destination document", () => {
