@@ -317,6 +317,12 @@ describe("CanvasGrid", () => {
     expect(grid.scrollElement.style.overflow).toBe("auto");
     expect(grid.scrollElement.style.left).toBe("44px");
     expect(grid.scrollElement.style.top).toBe("20px");
+    expect(grid.scrollElement.style.borderTop).toBe(
+      "1px solid rgb(80, 80, 80)",
+    );
+    expect(grid.scrollElement.style.borderLeft).toBe(
+      "1px solid rgb(80, 80, 80)",
+    );
     expect(grid.viewport.children.length).toBe(2);
     expect(grid.element.getAttribute("role")).toBe("grid");
     expect(grid.element.getAttribute("aria-rowcount")).toBe("-1");
