@@ -991,6 +991,166 @@ describe("CanvasGrid", () => {
     expect(context.calls.fillText.length).toBeLessThan(2000);
   });
 
+  it("exposes stable host geometry, measurement, and scroll facades", () => {
+    current = createGrid({
+      windowRows: Array.from({ length: 10 }, (_, index) => ({
+        a: index,
+        b: index + 1,
+      })),
+      totalRows: 10,
+    });
+    const { grid } = current;
+    grid.element.getBoundingClientRect = () => ({
+      left: 100,
+      top: 50,
+      right: 340,
+      bottom: 150,
+      width: 240,
+      height: 100,
+    });
+    grid.setColumnWidths([160, 160]);
+
+    const scrollStates = [];
+    const subscription = grid.onDidScroll((state) =>
+      scrollStates.push({ ...state }),
+    );
+    grid.setScrollState({ left: 50, logicalTop: 40 });
+
+    expect(scrollStates.length).toBe(1);
+    expect(grid.getScrollState()).toEqual(
+      jasmine.objectContaining({ left: 50, logicalTop: 40 }),
+    );
+    expect(grid.getViewportRect()).toEqual(
+      jasmine.objectContaining({
+        left: 144,
+        top: 70,
+        width: 196,
+        height: 80,
+        viewportX: 44,
+        viewportY: 20,
+      }),
+    );
+    expect(grid.getCellRect(3, 1)).toEqual(
+      jasmine.objectContaining({
+        left: 254,
+        top: 90,
+        width: 160,
+        height: 20,
+        viewportX: 154,
+        viewportY: 40,
+        row: 3,
+        windowRow: 3,
+        column: 1,
+        visible: true,
+      }),
+    );
+    expect(grid.getColumnRect(1)).toEqual(
+      jasmine.objectContaining({ left: 254, top: 50, height: 20 }),
+    );
+    expect(grid.getRowRect(3)).toEqual(
+      jasmine.objectContaining({ left: 100, top: 90, width: 44 }),
+    );
+    expect(grid.getCellRect(-1, 0)).toBeNull();
+    expect(grid.measureText("abc").width).toBe(18);
+    expect(grid.getFontMetrics()).toEqual({
+      css: "12px monospace",
+      size: 12,
+      family: "monospace",
+      lineHeight: 14,
+    });
+
+    subscription.dispose();
+    grid.setScrollState({ left: 0, logicalTop: 0 });
+    expect(scrollStates.length).toBe(1);
+    grid.setRows({ rows: [], columns: grid.columns });
+    expect(grid.getColumnRect(0)).not.toBeNull();
+  });
+
+  it("owns row metrics and column widths through explicit facade methods", () => {
+    current = createGrid({
+      windowRows: [
+        { a: "one", b: "two" },
+        { a: "three", b: "four" },
+      ],
+      totalRows: 2,
+    });
+    const { grid } = current;
+    const metrics = new AxisMetrics({
+      count: 2,
+      defaultSize: 30,
+      sizes: [31, 32],
+    });
+
+    expect(grid.setRowMetrics(metrics)).toBe(metrics);
+    expect(grid.rowMetrics).toBe(metrics);
+    expect(grid.rowSize(1)).toBe(32);
+    expect(grid.setColumnWidths([91, null])).toEqual([91, 70]);
+    expect(grid.setColumnWidth(1, 20)).toBe(true);
+    expect(grid.getColumnWidths()).toEqual([91, 24]);
+    expect(grid.setColumnWidth(0, null)).toBe(true);
+    expect(grid.getColumnWidths()).toEqual([60, 24]);
+    expect(grid.resetColumnWidths()).toEqual([60, 70]);
+    expect(grid.setRowHeaderWidth(55)).toBe(55);
+    expect(grid.setRowHeaderWidth(null)).toBe(44);
+    expect(() => grid.setRowMetrics({})).toThrowError(TypeError);
+    expect(() => grid.setColumnWidths("91,70")).toThrowError(TypeError);
+  });
+
+  it("can disable column resizing without disabling row resizing", () => {
+    current = createGrid({
+      windowRows: [{ a: "one", b: "two" }],
+      totalRows: 1,
+      resizableColumns: false,
+      resizableRows: true,
+    });
+    const { grid } = current;
+
+    expect(grid.resizeHit(104, 10)).toBeNull();
+    expect(grid.resizeHit(10, 40)).toEqual({ row: 0 });
+    expect(grid.setResizable({ columns: true })).toEqual({
+      columns: true,
+      rows: true,
+    });
+    expect(grid.resizeHit(104, 10)).toEqual({ column: 0 });
+  });
+
+  it("updates host callbacks and interaction options without replacing the bag", () => {
+    current = createGrid({
+      windowRows: [{ a: "one", b: "two" }],
+      totalRows: 1,
+    });
+    const { grid } = current;
+    const options = grid.options;
+    const onSort = jasmine.createSpy("onSort");
+    const onError = jasmine.createSpy("onError");
+    const clipboard = { write: jasmine.createSpy("write") };
+
+    expect(
+      grid.updateOptions({
+        ariaLabel: "Workbook cells",
+        busy: true,
+        clipboard,
+        onError,
+        onSort,
+        resizableColumns: false,
+      }),
+    ).toBe(grid);
+    expect(grid.options).toBe(options);
+    expect(grid.element.getAttribute("aria-label")).toBe("Workbook cells");
+    expect(grid.element.getAttribute("aria-busy")).toBe("true");
+    expect(grid.clipboard).toBe(clipboard);
+    expect(grid.requestSort(0, "ascending", "api")).toBe(true);
+    expect(onSort).toHaveBeenCalledWith(grid.columns[0], 0, {
+      direction: "ascending",
+      source: "api",
+    });
+    expect(grid.resizeHit(104, 10)).toBeNull();
+    const cacheError = new Error("updated callback");
+    grid.cache.onDidError(cacheError, { pageIndex: 3 });
+    expect(onError).toHaveBeenCalledWith(cacheError, { pageIndex: 3 });
+    expect(() => grid.updateOptions(null)).toThrowError(TypeError);
+  });
+
   it("cancels scheduled work and observers on idempotent destroy", () => {
     current = createGrid();
     const { grid, commands, resizeWasDisconnected } = current;
@@ -1004,6 +1164,11 @@ describe("CanvasGrid", () => {
 });
 
 describe("canvas-grid helpers", () => {
+  it("keeps standalone models identical to the entrypoint exports", () => {
+    expect(require("../lib/axis-metrics")).toBe(AxisMetrics);
+    expect(require("../lib/paged-row-cache")).toBe(PagedRowCache);
+  });
+
   it("formats nulls and binary values without expanding them", () => {
     expect(formatCell(null)).toBe("NULL");
     expect(formatCell(Buffer.from([1, 2, 3]))).toBe("[BLOB 3 bytes]");
