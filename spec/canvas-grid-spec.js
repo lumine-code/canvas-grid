@@ -404,6 +404,52 @@ describe("CanvasGrid", () => {
     expect(grid.logicalHeight).toBe(95);
   });
 
+  it("resizes rows from gutter boundaries and reports the committed height", () => {
+    const resized = [];
+    current = createGrid({
+      windowRows: [
+        { a: "a0", b: "b0" },
+        { a: "a1", b: "b1" },
+      ],
+      totalRows: 2,
+      resizableRows: true,
+      onRowResize: (event) => resized.push(event),
+    });
+    const { grid } = current;
+    expect(grid.resizeHit(2, 40)).toEqual({ row: 0 });
+    grid.handleMouseDown({
+      button: 0,
+      clientX: 2,
+      clientY: 40,
+      preventDefault() {},
+    });
+    grid.handleResizeMove({ clientX: 2, clientY: 52 });
+    grid.handleResizeUp();
+    expect(grid.rowSize(0)).toBe(32);
+    expect(resized.length).toBe(1);
+    expect(resized[0]).toEqual(
+      jasmine.objectContaining({ row: 0, windowRow: 0, height: 32 }),
+    );
+  });
+
+  it("auto-scrolls a dragged selection near the viewport edge", () => {
+    current = createGrid({
+      windowRows: Array.from({ length: 10 }, (_, index) => ({
+        a: `a${index}`,
+        b: `b${index}`,
+      })),
+      totalRows: 10,
+    });
+    const { grid, frames } = current;
+    grid.startSelection({ zone: "body", row: 0, column: 0 });
+    grid.dragging = true;
+    grid.handleWindowMouseMove({ clientX: 100, clientY: 99 });
+    frames.flush();
+    expect(grid.element.scrollTop).toBeGreaterThan(0);
+    expect(grid.normalizedSelections()[0].r1).toBeGreaterThan(0);
+    grid.handleWindowMouseUp();
+  });
+
   it("clips and invokes a custom painter only for visible loaded cells", () => {
     const painter = jasmine.createSpy("painter");
     current = createGrid({
