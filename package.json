@@ -1,0 +1,39 @@
+{
+  "name": "@lumine-code/canvas-grid",
+  "author": "lumine-code",
+  "version": "1.0.0",
+  "description": "Render large tabular datasets in an interactive canvas grid.",
+  "keywords": [
+    "canvas",
+    "data-grid",
+    "virtualization",
+    "spreadsheet",
+    "lumine"
+  ],
+  "repository": "https://github.com/lumine-code/canvas-grid",
+  "bugs": {
+    "url": "https://github.com/lumine-code/canvas-grid/issues"
+  },
+  "license": "MIT",
+  "main": "./lib/canvas-grid",
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "lumine --test spec",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.9.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-n": "^18.3.0",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6"
+  }
+}

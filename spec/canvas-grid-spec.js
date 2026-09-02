@@ -1,10 +1,82 @@
 const {
+  AxisMetrics,
   CanvasGrid,
   PagedRowCache,
   MAX_CACHED_PAGES,
   formatCell,
   lowerBound,
 } = require("../lib/canvas-grid");
+
+describe("AxisMetrics", () => {
+  it("updates variable sizes and finds items through prefix sums", () => {
+    const metrics = new AxisMetrics({ count: 4, defaultSize: 20 });
+    expect(metrics.totalSize).toBe(80);
+    expect(metrics.offsetAt(3)).toBe(60);
+    expect(metrics.indexAt(59)).toBe(2);
+    expect(metrics.indexAt(60)).toBe(3);
+
+    metrics.setSize(1, 35);
+    expect(metrics.toArray()).toEqual([undefined, 35, undefined, undefined]);
+    expect(metrics.offsetAt(2)).toBe(55);
+    expect(metrics.totalSize).toBe(95);
+    expect(metrics.indexAt(54)).toBe(1);
+    expect(metrics.indexAt(55)).toBe(2);
+  });
+
+  it("rebuilds deterministically across insert, delete, reorder, and default changes", () => {
+    const metrics = new AxisMetrics({
+      count: 3,
+      defaultSize: 10,
+      sizes: [12, null, 18],
+    });
+    metrics.insert(1, 2, [7, null]);
+    expect(
+      Array.from({ length: metrics.count }, (_, index) =>
+        metrics.sizeAt(index),
+      ),
+    ).toEqual([12, 7, 10, 10, 18]);
+    expect(metrics.delete(2, 1)).toEqual([undefined]);
+    metrics.reorder([3, 0, 2, 1]);
+    expect(
+      Array.from({ length: metrics.count }, (_, index) =>
+        metrics.sizeAt(index),
+      ),
+    ).toEqual([18, 12, 10, 7]);
+    metrics.setDefaultSize(16);
+    expect(metrics.sizeAt(2)).toBe(16);
+    expect(metrics.totalSize).toBe(53);
+  });
+
+  it("matches a direct model through randomized point updates and lookups", () => {
+    let seed = 0x5eed;
+    const random = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 0x100000000;
+    };
+    const expected = new Array(256).fill(24);
+    const metrics = new AxisMetrics({
+      count: expected.length,
+      defaultSize: 24,
+    });
+    for (let operation = 0; operation < 1000; operation++) {
+      const index = Math.floor(random() * expected.length);
+      const size = 8 + Math.floor(random() * 64);
+      expected[index] = size;
+      metrics.setSize(index, size);
+      const probe = random() * expected.reduce((sum, value) => sum + value, 0);
+      let directIndex = 0;
+      let offset = expected[0];
+      while (directIndex < expected.length - 1 && offset <= probe) {
+        directIndex++;
+        offset += expected[directIndex];
+      }
+      expect(metrics.indexAt(probe)).toBe(directIndex);
+    }
+    expect(metrics.totalSize).toBe(
+      expected.reduce((sum, value) => sum + value, 0),
+    );
+  });
+});
 
 function frameQueue() {
   let nextId = 1;
@@ -25,7 +97,8 @@ function frameQueue() {
         callbacks.clear();
         pending.forEach((callback) => callback());
       }
-      if (callbacks.size) throw new Error("Animation frame queue did not settle");
+      if (callbacks.size)
+        throw new Error("Animation frame queue did not settle");
     },
     get size() {
       return callbacks.size;
@@ -68,10 +141,10 @@ function fakeContext() {
 
 function fakeStyle(overrides = {}) {
   const values = {
-    "--sqlite-view-row-height": "20px",
-    "--sqlite-view-header-height": "20px",
-    "--sqlite-view-accent-color": "rgb(1, 2, 3)",
-    "--sqlite-view-null-color": "rgb(4, 5, 6)",
+    "--canvas-grid-row-height": "20px",
+    "--canvas-grid-header-height": "20px",
+    "--canvas-grid-accent-color": "rgb(1, 2, 3)",
+    "--canvas-grid-null-color": "rgb(4, 5, 6)",
     "--text-color": "rgb(220, 220, 220)",
     "--text-color-subtle": "rgb(140, 140, 140)",
     "--base-border-color": "rgb(80, 80, 80)",
@@ -109,6 +182,7 @@ function commandHarness() {
 function createGrid(options = {}) {
   const frames = frameQueue();
   const context = fakeContext();
+  const overlayContext = fakeContext();
   const commands = commandHarness();
   let resizeDisconnected = false;
   const grid = new CanvasGrid({
@@ -121,6 +195,9 @@ function createGrid(options = {}) {
     width: 240,
     height: 100,
     context,
+    overlayContext,
+    className: "sqlite-view-grid",
+    commandPrefix: "sqlite-view",
     commands,
     requestAnimationFrame: (callback) => frames.request(callback),
     cancelAnimationFrame: (id) => frames.cancel(id),
@@ -166,6 +243,7 @@ function createGrid(options = {}) {
     grid,
     frames,
     context,
+    overlayContext,
     commands,
     resizeWasDisconnected: () => resizeDisconnected,
   };
@@ -233,6 +311,7 @@ describe("CanvasGrid", () => {
 
     expect(grid.element.classList.contains("sqlite-view-grid")).toBe(true);
     expect(grid.element.children.length).toBe(4);
+    expect(grid.viewport.children.length).toBe(2);
     expect(grid.element.getAttribute("role")).toBe("grid");
     expect(grid.element.getAttribute("aria-rowcount")).toBe("-1");
     expect(grid.element.getAttribute("aria-colcount")).toBe("2");
@@ -240,12 +319,16 @@ describe("CanvasGrid", () => {
     expect(grid.element.getAttribute("aria-busy")).toBe("true");
     expect(grid.canvas.width).toBe(480);
     expect(grid.canvas.height).toBe(200);
+    expect(grid.overlayCanvas.width).toBe(480);
+    expect(grid.overlayCanvas.height).toBe(200);
     expect(context.calls.fillRect).not.toContain([0, 0, 240, 100]);
 
     grid.moveActiveSelectionTo(1, 1);
     expect(grid.ariaCell.getAttribute("aria-rowindex")).toBe("102");
     expect(grid.ariaCell.getAttribute("aria-colindex")).toBe("2");
-    expect(grid.ariaCell.textContent).toContain("B, row 102 of an unknown total: delta");
+    expect(grid.ariaCell.textContent).toContain(
+      "B, row 102 of an unknown total: delta",
+    );
     expect(grid.liveRegion.textContent).toContain("Selected row 102, column B");
   });
 
@@ -262,7 +345,10 @@ describe("CanvasGrid", () => {
   });
 
   it("renders only the visible window and finds columns through prefix offsets", () => {
-    const rows = Array.from({ length: 20 }, (_, index) => ({ a: `a${index}`, b: `b${index}` }));
+    const rows = Array.from({ length: 20 }, (_, index) => ({
+      a: `a${index}`,
+      b: `b${index}`,
+    }));
     current = createGrid({ windowRows: rows, totalRows: 20, height: 80 });
     const { grid, frames, context } = current;
     grid.resize(240, 80);
@@ -274,6 +360,64 @@ describe("CanvasGrid", () => {
     expect(labels).not.toContain("a10");
     expect(grid.hit(grid.rowHeaderWidth + 61, 40, false).column).toBe(1);
     expect(grid.columnAtContentX(grid.columnStarts[1])).toBe(1);
+  });
+
+  it("accepts an unbounded in-memory row array without treating it as a keyset window", () => {
+    current = createGrid({
+      windowRows: undefined,
+      rows: Array.from({ length: 1000 }, (_, index) => ({
+        a: index,
+        b: index,
+      })),
+    });
+    expect(current.grid.memoryMode).toBe(true);
+    expect(current.grid.rowCount).toBe(1000);
+    expect(current.grid.totalRows).toBe(1000);
+    expect(current.grid.cache.size).toBe(0);
+  });
+
+  it("uses variable row metrics for layout, hit-testing, selection, and resizing", () => {
+    const rowMetrics = new AxisMetrics({
+      count: 3,
+      defaultSize: 20,
+      sizes: [10, 30, 20],
+    });
+    current = createGrid({
+      windowRows: [
+        { a: "a0", b: "b0" },
+        { a: "a1", b: "b1" },
+        { a: "a2", b: "b2" },
+      ],
+      totalRows: 3,
+      rowMetrics,
+      resizableRows: true,
+    });
+    const { grid } = current;
+    expect(grid.logicalHeight).toBe(80);
+    expect(grid.hit(100, 29, false).row).toBe(0);
+    expect(grid.hit(100, 30, false).row).toBe(1);
+    expect(grid.setRowSize(1, 45)).toBe(true);
+    expect(grid.rowOffset(2)).toBe(55);
+    expect(grid.logicalHeight).toBe(95);
+  });
+
+  it("clips and invokes a custom painter only for visible loaded cells", () => {
+    const painter = jasmine.createSpy("painter");
+    current = createGrid({
+      columns: [{ key: "a", label: "A", width: 60, paintCell: painter }],
+      windowRows: [{ a: "painted" }],
+      totalRows: 1,
+    });
+    current.frames.flush();
+    expect(painter).toHaveBeenCalled();
+    expect(painter.calls.mostRecent().args[1]).toEqual(
+      jasmine.objectContaining({
+        value: "painted",
+        text: "painted",
+        row: 0,
+        column: 0,
+      }),
+    );
   });
 
   it("caches fitted visible text instead of measuring it on every draw", () => {
@@ -361,19 +505,30 @@ describe("CanvasGrid", () => {
     expect(requests.length).toBe(1);
     expect(requests[0].activeRow).toBe(14);
     expect(grid.baseRow).toBe(15);
-    expect(grid.publicActiveCell()).toEqual({ row: 15, column: 0, windowRow: 0 });
+    expect(grid.publicActiveCell()).toEqual({
+      row: 15,
+      column: 0,
+      windowRow: 0,
+    });
 
     commands.dispatch("core:move-to-bottom");
     expect(ends.length).toBe(1);
     expect(grid.baseRow).toBe(98);
-    expect(grid.publicActiveCell()).toEqual({ row: 99, column: 1, windowRow: 1 });
+    expect(grid.publicActiveCell()).toEqual({
+      row: 99,
+      column: 1,
+      windowRow: 1,
+    });
     expect(grid.element.getAttribute("aria-rowcount")).toBe("100");
   });
 
   it("keeps a keyboard target pending across an intermediate two-page window", () => {
     current = createGrid({
       baseRow: 0,
-      windowRows: Array.from({ length: 6 }, (_, index) => ({ a: index, b: index })),
+      windowRows: Array.from({ length: 6 }, (_, index) => ({
+        a: index,
+        b: index,
+      })),
       hasNext: true,
       totalRows: null,
       onNeedNext() {},
@@ -384,7 +539,10 @@ describe("CanvasGrid", () => {
 
     grid.setWindow({
       baseRow: 2,
-      rows: Array.from({ length: 4 }, (_, index) => ({ a: index + 2, b: index + 2 })),
+      rows: Array.from({ length: 4 }, (_, index) => ({
+        a: index + 2,
+        b: index + 2,
+      })),
       hasPrevious: true,
       hasNext: true,
       totalRows: null,
@@ -394,19 +552,29 @@ describe("CanvasGrid", () => {
 
     grid.setWindow({
       baseRow: 2,
-      rows: Array.from({ length: 6 }, (_, index) => ({ a: index + 2, b: index + 2 })),
+      rows: Array.from({ length: 6 }, (_, index) => ({
+        a: index + 2,
+        b: index + 2,
+      })),
       hasPrevious: true,
       hasNext: true,
       totalRows: null,
     });
     expect(grid.pendingNavigation).toBeNull();
-    expect(grid.publicActiveCell()).toEqual({ row: 6, column: 0, windowRow: 4 });
+    expect(grid.publicActiveCell()).toEqual({
+      row: 6,
+      column: 0,
+      windowRow: 4,
+    });
   });
 
   it("deduplicates edge requests until a new window arrives", () => {
     let requests = 0;
     current = createGrid({
-      windowRows: Array.from({ length: 10 }, (_, index) => ({ a: index, b: index })),
+      windowRows: Array.from({ length: 10 }, (_, index) => ({
+        a: index,
+        b: index,
+      })),
       hasNext: true,
       totalRows: null,
       height: 60,
@@ -514,7 +682,10 @@ describe("CanvasGrid", () => {
       pageSize: 5,
       fetchRows: ({ offset, limit, pageIndex }) => {
         pages.push(pageIndex);
-        return Array.from({ length: limit }, (_, index) => ({ a: offset + index, b: pageIndex }));
+        return Array.from({ length: limit }, (_, index) => ({
+          a: offset + index,
+          b: pageIndex,
+        }));
       },
       height: 60,
     });
@@ -547,7 +718,10 @@ describe("CanvasGrid", () => {
       fetchRows: ({ offset, limit }) => {
         requests.push({ offset, limit });
         return Array.from({ length: limit }, (_, row) =>
-          Array.from({ length: 100 }, (_, column) => `${offset + row}:${column}`),
+          Array.from(
+            { length: 100 },
+            (_, column) => `${offset + row}:${column}`,
+          ),
         );
       },
     });
