@@ -32,6 +32,10 @@ document.body.appendChild(grid.element);
 
 Call `destroy()` before discarding a grid. Consumers that use paged data should also treat every `fetchRows` signal as authoritative and stop work when it is aborted.
 
+Pass `rowCount` with `fetchRows({offset, limit, signal})` for offset paging, or `baseRow`, `windowRows`, `hasPrevious`, `hasNext` and boundary callbacks for a host-managed keyset window. An ordinary `rows` array selects the unbounded in-memory mode. Set `copyRows: false` only when the host owns the outer array and keeps its row objects stable.
+
+Columns may define `formatCell(value, row, rowIndex)` for plain text or `paintCell(context, details)` for custom synchronous drawing. Painters receive a clipped context and must not retain it. Use `rowMetrics` to share an `AxisMetrics` instance with a model that owns variable row heights.
+
 ## Exports
 
 - `CanvasGrid`: the canvas surface, interaction state and optional row cache.

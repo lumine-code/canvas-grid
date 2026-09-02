@@ -363,17 +363,20 @@ describe("CanvasGrid", () => {
   });
 
   it("accepts an unbounded in-memory row array without treating it as a keyset window", () => {
+    const rows = Array.from({ length: 1000 }, (_, index) => ({
+      a: index,
+      b: index,
+    }));
     current = createGrid({
       windowRows: undefined,
-      rows: Array.from({ length: 1000 }, (_, index) => ({
-        a: index,
-        b: index,
-      })),
+      rows,
+      copyRows: false,
     });
     expect(current.grid.memoryMode).toBe(true);
     expect(current.grid.rowCount).toBe(1000);
     expect(current.grid.totalRows).toBe(1000);
     expect(current.grid.cache.size).toBe(0);
+    expect(current.grid.windowRows).toBe(rows);
   });
 
   it("uses variable row metrics for layout, hit-testing, selection, and resizing", () => {
@@ -418,6 +421,46 @@ describe("CanvasGrid", () => {
         column: 0,
       }),
     );
+  });
+
+  it("keeps controlled ranges intact while drawing a separate active cell", () => {
+    current = createGrid({
+      windowRows: [
+        { a: "a0", b: "b0" },
+        { a: "a1", b: "b1" },
+      ],
+      totalRows: 2,
+    });
+    const { grid } = current;
+    grid.setSelections([{ r0: 0, c0: 0, r1: 1, c1: 1 }], { row: 0, column: 1 });
+    expect(grid.normalizedSelections()).toEqual([
+      { r0: 0, c0: 0, r1: 1, c1: 1 },
+    ]);
+    expect(grid.activeCell()).toEqual({ row: 0, column: 1 });
+  });
+
+  it("draws search and row highlights on the overlay canvas", () => {
+    current = createGrid({
+      windowRows: [{ a: "alpha", b: "beta" }],
+      totalRows: 1,
+    });
+    const { grid, frames, overlayContext } = current;
+    const before = overlayContext.calls.fillRect.length;
+    grid.setHighlights([{ row: 0, column: 1 }], {
+      row: 0,
+      column: 1,
+    });
+    grid.setHighlightRow(0);
+    frames.flush();
+    expect(overlayContext.calls.fillRect.length).toBeGreaterThan(before);
+  });
+
+  it("schedules a complete repaint after a restored canvas context", () => {
+    current = createGrid();
+    const { grid } = current;
+    spyOn(grid, "scheduleDraw");
+    grid.canvas.dispatchEvent(new Event("contextrestored"));
+    expect(grid.scheduleDraw).toHaveBeenCalled();
   });
 
   it("caches fitted visible text instead of measuring it on every draw", () => {
