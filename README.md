@@ -40,4 +40,4 @@ Call `destroy()` before discarding a grid. Consumers that use paged data should 
 
 ## Contributing
 
-Got ideas, found a bug, or want to help? Open an issue or send a pull request.
+Got ideas to make this package better, found a bug, or want to help add new features? Just drop your thoughts on GitHub. Any feedback is welcome!
