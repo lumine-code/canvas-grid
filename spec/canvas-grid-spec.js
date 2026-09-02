@@ -537,8 +537,10 @@ describe("CanvasGrid", () => {
     ]);
     expect(grid.activeCell()).toEqual({ row: 0, column: 1 });
     grid.focused = true;
+    spyOn(overlayContext, "clip").and.callThrough();
     grid.drawOverlay();
     expect(overlayContext.calls.fillText).toEqual([]);
+    expect(overlayContext.clip).toHaveBeenCalledTimes(4);
   });
 
   it("restores the directed anchor from a controlled range and active endpoint", () => {
