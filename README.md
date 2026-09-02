@@ -36,6 +36,8 @@ Pass `rowCount` with `fetchRows({offset, limit, signal})` for offset paging, or 
 
 Columns may define `formatCell(value, row, rowIndex)` for plain text or `paintCell(context, details)` for custom synchronous drawing. Painters receive a clipped context and must not retain it. Use `rowMetrics` to share an `AxisMetrics` instance with a model that owns variable row heights.
 
+In Lumine, the renderer inherits the shared `--data-grid-*` theme tokens for dimensions and semantic colors. A host can override one grid locally with the corresponding `--canvas-grid-*` token without changing the editor-wide table style.
+
 ## Exports
 
 - `CanvasGrid`: the canvas surface, interaction state and optional row cache.
