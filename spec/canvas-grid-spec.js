@@ -450,6 +450,22 @@ describe("CanvasGrid", () => {
     grid.handleWindowMouseUp();
   });
 
+  it("uses the default cursor over native scrollbar areas", () => {
+    current = createGrid({
+      windowRows: [{ a: "a", b: "b" }],
+      totalRows: 1,
+    });
+    const { grid } = current;
+    Object.defineProperties(grid.element, {
+      clientWidth: { configurable: true, value: 220 },
+      clientHeight: { configurable: true, value: 80 },
+    });
+    grid.handleMouseMove({ clientX: 230, clientY: 50 });
+    expect(grid.element.style.cursor).toBe("default");
+    grid.handleMouseMove({ clientX: 100, clientY: 50 });
+    expect(grid.element.style.cursor).toBe("");
+  });
+
   it("clips and invokes a custom painter only for visible loaded cells", () => {
     const painter = jasmine.createSpy("painter");
     current = createGrid({
@@ -477,12 +493,15 @@ describe("CanvasGrid", () => {
       ],
       totalRows: 2,
     });
-    const { grid } = current;
+    const { grid, overlayContext } = current;
     grid.setSelections([{ r0: 0, c0: 0, r1: 1, c1: 1 }], { row: 0, column: 1 });
     expect(grid.normalizedSelections()).toEqual([
       { r0: 0, c0: 0, r1: 1, c1: 1 },
     ]);
     expect(grid.activeCell()).toEqual({ row: 0, column: 1 });
+    grid.focused = true;
+    grid.drawOverlay();
+    expect(overlayContext.calls.fillText).toEqual([]);
   });
 
   it("draws search and row highlights on the overlay canvas", () => {
