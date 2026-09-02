@@ -6,7 +6,7 @@ The grid keeps its DOM fixed while drawing only the visible rows and columns. It
 
 ## Features
 
-- **Bounded rendering**: a scroll sizer and two sticky canvases cover arbitrarily large logical grids without creating one element per cell.
+- **Bounded rendering**: an inset scrollport and two fixed canvases cover arbitrarily large logical grids without creating one element per cell or placing scrollbars over pinned headers.
 - **Flexible data**: use an in-memory row array, an asynchronous offset loader or a keyset window managed by the host.
 - **Fast geometry**: prefix-sum axis metrics provide variable item sizes, offset queries and hit-testing without scanning an axis.
 - **Interaction**: keyboard navigation, rectangular multi-selection, resizing and bounded clipboard export are available through a host-neutral API.

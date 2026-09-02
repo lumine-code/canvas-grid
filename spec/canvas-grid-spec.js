@@ -214,7 +214,7 @@ function createGrid(options = {}) {
   });
   let scrollTop = 0;
   let scrollLeft = 0;
-  Object.defineProperties(grid.element, {
+  Object.defineProperties(grid.scrollElement, {
     scrollTop: {
       configurable: true,
       get: () => scrollTop,
@@ -311,6 +311,12 @@ describe("CanvasGrid", () => {
 
     expect(grid.element.classList.contains("sqlite-view-grid")).toBe(true);
     expect(grid.element.children.length).toBe(4);
+    expect(grid.element.firstElementChild).toBe(grid.scrollElement);
+    expect(grid.scrollElement.firstElementChild).toBe(grid.sizer);
+    expect(grid.element.style.overflow).toBe("hidden");
+    expect(grid.scrollElement.style.overflow).toBe("auto");
+    expect(grid.scrollElement.style.left).toBe("44px");
+    expect(grid.scrollElement.style.top).toBe("20px");
     expect(grid.viewport.children.length).toBe(2);
     expect(grid.element.getAttribute("role")).toBe("grid");
     expect(grid.element.getAttribute("aria-rowcount")).toBe("-1");
@@ -445,7 +451,7 @@ describe("CanvasGrid", () => {
     grid.dragging = true;
     grid.handleWindowMouseMove({ clientX: 100, clientY: 99 });
     frames.flush();
-    expect(grid.element.scrollTop).toBeGreaterThan(0);
+    expect(grid.scrollElement.scrollTop).toBeGreaterThan(0);
     expect(grid.normalizedSelections()[0].r1).toBeGreaterThan(0);
     grid.handleWindowMouseUp();
   });
@@ -456,12 +462,21 @@ describe("CanvasGrid", () => {
       totalRows: 1,
     });
     const { grid } = current;
-    Object.defineProperties(grid.element, {
-      clientWidth: { configurable: true, value: 220 },
-      clientHeight: { configurable: true, value: 80 },
+    grid.scrollElement.getBoundingClientRect = () => ({
+      left: 44,
+      top: 20,
+      right: 240,
+      bottom: 100,
+      width: 196,
+      height: 80,
+    });
+    Object.defineProperties(grid.scrollElement, {
+      clientWidth: { configurable: true, value: 180 },
+      clientHeight: { configurable: true, value: 64 },
     });
     grid.handleMouseMove({ clientX: 230, clientY: 50 });
     expect(grid.element.style.cursor).toBe("default");
+    expect(grid.hit(230, 50, false)).toBeNull();
     grid.handleMouseMove({ clientX: 100, clientY: 50 });
     expect(grid.element.style.cursor).toBe("");
   });
@@ -558,7 +573,7 @@ describe("CanvasGrid", () => {
 
     expect(ranges[0].start).toBe(0);
     expect(ranges[0].end).toBeLessThan(20);
-    grid.element.scrollLeft = 500;
+    grid.scrollElement.scrollLeft = 500;
     grid.handleScroll();
     expect(ranges.at(-1).start).toBeGreaterThan(0);
     expect(ranges.at(-1).columns.length).toBeLessThan(20);
@@ -690,7 +705,7 @@ describe("CanvasGrid", () => {
     });
     const { grid } = current;
     grid.resize(240, 60);
-    grid.element.scrollTop = grid.physicalMaxScroll();
+    grid.scrollElement.scrollTop = grid.physicalMaxScroll();
     grid.handleScroll();
     grid.handleScroll();
     expect(requests).toBe(1);
@@ -803,7 +818,7 @@ describe("CanvasGrid", () => {
     expect(grid.cache.size).toBe(MAX_CACHED_PAGES);
     expect(pages.slice(0, 3)).toEqual([0, 1, 2]);
 
-    grid.element.scrollTop = grid.physicalMaxScroll();
+    grid.scrollElement.scrollTop = grid.physicalMaxScroll();
     grid.handleScroll();
     await grid.whenIdle();
     expect(grid.cache.size).toBe(MAX_CACHED_PAGES);
@@ -835,7 +850,7 @@ describe("CanvasGrid", () => {
     });
     const { grid, frames, context } = current;
     grid.resize(1920, 1080);
-    grid.element.scrollTop = grid.physicalMaxScroll();
+    grid.scrollElement.scrollTop = grid.physicalMaxScroll();
     grid.handleScroll();
     await grid.whenIdle();
     frames.flush();
