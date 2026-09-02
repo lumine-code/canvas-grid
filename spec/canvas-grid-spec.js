@@ -141,10 +141,11 @@ function fakeContext() {
 
 function fakeStyle(overrides = {}) {
   const values = {
-    "--canvas-grid-row-height": "20px",
-    "--canvas-grid-header-height": "20px",
-    "--canvas-grid-accent-color": "rgb(1, 2, 3)",
-    "--canvas-grid-null-color": "rgb(4, 5, 6)",
+    "--data-grid-row-height": "20px",
+    "--data-grid-header-height": "20px",
+    "--data-grid-accent-color": "rgb(1, 2, 3)",
+    "--data-grid-null-color": "rgb(4, 5, 6)",
+    "--data-grid-border-color": "rgb(80, 80, 80)",
     "--text-color": "rgb(220, 220, 220)",
     "--text-color-subtle": "rgb(140, 140, 140)",
     "--base-border-color": "rgb(80, 80, 80)",
@@ -354,6 +355,21 @@ describe("CanvasGrid", () => {
       current.grid.destroy();
       current = null;
     }
+  });
+
+  it("inherits core grid tokens while allowing a local canvas override", () => {
+    current = createGrid({
+      getComputedStyle: () =>
+        fakeStyle({
+          "--data-grid-row-height": "25px",
+          "--data-grid-header-height": "27px",
+          "--data-grid-accent-color": "rgb(10, 20, 30)",
+          "--canvas-grid-row-height": "31px",
+        }),
+    });
+    expect(current.grid.rowHeight).toBe(31);
+    expect(current.grid.headerHeight).toBe(27);
+    expect(current.grid.colorAccent).toBe("rgb(10, 20, 30)");
   });
 
   it("renders only the visible window and finds columns through prefix offsets", () => {
