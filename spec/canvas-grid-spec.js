@@ -568,6 +568,31 @@ describe("CanvasGrid", () => {
     ]);
   });
 
+  it("keeps the active directed range linked across data-window refreshes", () => {
+    const columns = ["A", "B", "C"];
+    const rows = [
+      ["a0", "b0", "c0"],
+      ["a1", "b1", "c1"],
+      ["a2", "b2", "c2"],
+    ];
+    current = createGrid({ columns, windowRows: rows, totalRows: 3 });
+    const { grid } = current;
+    grid.startSelection({ zone: "body", row: 2, column: 2 });
+    grid.moveActiveSelection(-1, 0, true);
+    grid.setWindow({ baseRow: 0, rows, totalRows: 3, columns });
+
+    expect(grid.selection).toBe(grid.selections.at(-1));
+    grid.moveActiveSelection(0, -1, true);
+    expect(grid.publicActiveCell()).toEqual({
+      row: 1,
+      column: 1,
+      windowRow: 1,
+    });
+    expect(grid.normalizedSelections()).toEqual([
+      { r0: 1, c0: 1, r1: 2, c1: 2 },
+    ]);
+  });
+
   it("draws search and row highlights on the overlay canvas", () => {
     current = createGrid({
       windowRows: [{ a: "alpha", b: "beta" }],
