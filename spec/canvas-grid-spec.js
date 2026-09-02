@@ -541,6 +541,33 @@ describe("CanvasGrid", () => {
     expect(overlayContext.calls.fillText).toEqual([]);
   });
 
+  it("restores the directed anchor from a controlled range and active endpoint", () => {
+    current = createGrid({
+      windowRows: [
+        { a: "a0", b: "b0" },
+        { a: "a1", b: "b1" },
+      ],
+      totalRows: 2,
+    });
+    const { grid } = current;
+    grid.setSelections([{ r0: 0, c0: 0, r1: 1, c1: 1 }], {
+      row: 0,
+      column: 0,
+    });
+    expect(grid.selection).toEqual({ r0: 1, c0: 1, r1: 0, c1: 0 });
+    expect(grid.activeOverride).toBeNull();
+
+    grid.moveActiveSelection(0, 1, true);
+    expect(grid.publicActiveCell()).toEqual({
+      row: 0,
+      column: 1,
+      windowRow: 0,
+    });
+    expect(grid.normalizedSelections()).toEqual([
+      { r0: 0, c0: 1, r1: 1, c1: 1 },
+    ]);
+  });
+
   it("draws search and row highlights on the overlay canvas", () => {
     current = createGrid({
       windowRows: [{ a: "alpha", b: "beta" }],
@@ -760,6 +787,58 @@ describe("CanvasGrid", () => {
 
     grid.selectRowAt(0);
     expect(grid.ariaCell.getAttribute("role")).toBe("rowheader");
+  });
+
+  it("selects column headers normally and routes Alt-click and context sort actions to the host", () => {
+    const sorts = [];
+    let prevented = false;
+    current = createGrid({
+      windowRows: [{ a: "alpha", b: "beta" }],
+      totalRows: 1,
+      onSort: (column, index, request) =>
+        sorts.push({ label: column.label, index, ...request }),
+    });
+    const { grid, commands } = current;
+
+    grid.handleMouseDown({
+      button: 0,
+      clientX:
+        grid.rowHeaderWidth + grid.columnWidths[0] + grid.columnWidths[1] / 2,
+      clientY: 4,
+      altKey: false,
+      preventDefault() {},
+    });
+    expect(grid.selectionMode).toBe("column");
+    expect(grid.normalizedSelections()[0]).toEqual(
+      jasmine.objectContaining({ c0: 1, c1: 1 }),
+    );
+    grid.handleWindowMouseUp();
+
+    grid.handleMouseDown({
+      button: 0,
+      clientX: grid.rowHeaderWidth + grid.columnWidths[0] / 2,
+      clientY: 4,
+      altKey: true,
+      preventDefault() {
+        prevented = true;
+      },
+    });
+    expect(prevented).toBe(true);
+    expect(sorts.at(-1)).toEqual({
+      label: "A",
+      index: 0,
+      direction: "cycle",
+      source: "alt-click",
+    });
+
+    grid.contextTarget = { zone: "column", row: 0, column: 1 };
+    commands.dispatch("sqlite-view:grid-sort-descending");
+    expect(sorts.at(-1)).toEqual({
+      label: "B",
+      index: 1,
+      direction: "descending",
+      source: "command",
+    });
   });
 
   it("refuses oversized copies before writing any partial clipboard text", async () => {
