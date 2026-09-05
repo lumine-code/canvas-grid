@@ -13,6 +13,12 @@ The grid keeps its DOM fixed while drawing only the visible rows and columns. It
 - **Accessible focus**: an active-descendant mirror and live region expose the focused cell while the canvases remain hidden from assistive technology.
 - **Host adapters**: commands, clipboard, theme events, notifications and animation scheduling can be injected by the consumer.
 
+## Installation
+
+```sh
+npm install @lumine-code/canvas-grid
+```
+
 ## Usage
 
 ```js
