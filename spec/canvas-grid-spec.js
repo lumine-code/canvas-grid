@@ -372,6 +372,34 @@ describe("CanvasGrid", () => {
     expect(current.grid.colorAccent).toBe("rgb(10, 20, 30)");
   });
 
+  it("repaints synchronously when a theme variant changes", async () => {
+    let accent = "rgb(10, 20, 30)";
+    current = createGrid({
+      observeTheme: true,
+      getComputedStyle: () => fakeStyle({ "--data-grid-accent-color": accent }),
+    });
+    const { grid, frames, context } = current;
+    Object.defineProperties(grid.element, {
+      clientWidth: { configurable: true, get: () => 240 },
+      clientHeight: { configurable: true, get: () => 100 },
+    });
+    jasmine.attachToDOM(grid.element);
+    spyOn(grid, "flushDraw").and.callThrough();
+    const fillsBeforeThemeChange = context.calls.fillRect.length;
+
+    await lumine.themes.updateAppearance(() => {
+      accent = "rgb(40, 50, 60)";
+    });
+    await null;
+
+    expect(grid.colorAccent).toBe("rgb(40, 50, 60)");
+    expect(grid.flushDraw).toHaveBeenCalled();
+    expect(context.calls.fillRect.length).toBeGreaterThan(
+      fillsBeforeThemeChange,
+    );
+    expect(frames.size).toBe(0);
+  });
+
   it("renders only the visible window and finds columns through prefix offsets", () => {
     const rows = Array.from({ length: 20 }, (_, index) => ({
       a: `a${index}`,
