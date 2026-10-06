@@ -372,6 +372,89 @@ describe("CanvasGrid", () => {
     expect(current.grid.colorAccent).toBe("rgb(10, 20, 30)");
   });
 
+  it("resolves relative CSS lengths to pixels in the attached grid", () => {
+    current = createGrid({
+      windowRows: [{ a: "alpha", b: "beta" }],
+      getComputedStyle: (element) => getComputedStyle(element),
+    });
+    const { grid } = current;
+    grid.element.style.fontSize = "20px";
+    grid.element.style.setProperty("--data-grid-row-height", "1.5em");
+    grid.element.style.setProperty(
+      "--data-grid-header-height",
+      "calc(2rem + 3px)",
+    );
+    jasmine.attachToDOM(grid.element);
+    grid.resize(240, 100);
+    const rootFontSize = Number.parseFloat(
+      getComputedStyle(document.documentElement).fontSize,
+    );
+    expect(grid.rowHeight).toBe(30);
+    expect(grid.headerHeight).toBe(rootFontSize * 2 + 3);
+    expect(grid.rowMetrics.sizeAt(0)).toBe(30);
+    expect(Number.parseFloat(grid.scrollElement.style.top)).toBe(
+      grid.headerHeight,
+    );
+
+    grid.element.style.setProperty(
+      "--canvas-grid-row-height",
+      "calc(1em + 7px)",
+    );
+    grid.readTheme();
+    expect(grid.rowHeight).toBe(27);
+    expect(grid.rowMetrics.sizeAt(0)).toBe(27);
+    expect(grid.element.children.length).toBe(4);
+  });
+
+  it("keeps valid default geometry when a CSS length is invalid or nonpositive", () => {
+    current = createGrid({
+      getComputedStyle: (element) => getComputedStyle(element),
+    });
+    const { grid } = current;
+    grid.element.style.setProperty("--data-grid-row-height", "invalid");
+    grid.element.style.setProperty("--data-grid-header-height", "0px");
+    jasmine.attachToDOM(grid.element);
+    grid.resize(240, 100);
+    expect(grid.rowHeight).toBe(24);
+    expect(grid.headerHeight).toBe(24);
+  });
+
+  it("resolves relative colors and currentColor before drawing on canvas", () => {
+    current = createGrid({
+      getComputedStyle: (element) => getComputedStyle(element),
+    });
+    const { grid } = current;
+    grid.element.style.color = "rgb(10, 20, 30)";
+    grid.element.style.setProperty(
+      "--data-grid-text-color",
+      "rgb(from rgb(10, 20, 30) calc(r + 10) g b)",
+    );
+    grid.element.style.setProperty("--data-grid-header-color", "currentColor");
+    grid.element.style.setProperty(
+      "--data-grid-accent-color",
+      "color-mix(in srgb, rgb(0, 0, 0) 50%, rgb(200, 100, 50))",
+    );
+    jasmine.attachToDOM(grid.element);
+    grid.resize(240, 100);
+    expect(grid.colorText).not.toContain("from");
+    expect(grid.colorHeader).toBe("rgb(10, 20, 30)");
+    expect(grid.colorAccent).not.toContain("color-mix");
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    context.fillStyle = grid.colorText;
+    context.fillRect(0, 0, 1, 1);
+    expect(Array.from(context.getImageData(0, 0, 1, 1).data)).toEqual([
+      20, 20, 30, 255,
+    ]);
+    context.fillStyle = "#ff00ff";
+    context.fillStyle = grid.colorAccent;
+    context.fillRect(0, 0, 1, 1);
+    expect(Array.from(context.getImageData(0, 0, 1, 1).data)).toEqual([
+      100, 50, 25, 255,
+    ]);
+    expect(grid.element.children.length).toBe(4);
+  });
+
   it("repaints synchronously when a theme variant changes", async () => {
     let accent = "rgb(10, 20, 30)";
     current = createGrid({
@@ -398,6 +481,66 @@ describe("CanvasGrid", () => {
       fillsBeforeThemeChange,
     );
     expect(frames.size).toBe(0);
+  });
+
+  it("refreshes accent aliases and CSS geometry when a user stylesheet changes", async () => {
+    current = createGrid({
+      className: "canvas-grid-live-variables-spec",
+      observeTheme: true,
+      windowRows: [{ a: "alpha", b: "beta" }],
+      getComputedStyle: (element) => getComputedStyle(element),
+    });
+    const { grid, frames } = current;
+    Object.defineProperties(grid.element, {
+      clientWidth: { configurable: true, get: () => 240 },
+      clientHeight: { configurable: true, get: () => 100 },
+    });
+    jasmine.attachToDOM(grid.element);
+    grid.resize(240, 100);
+    const previousAccent = grid.colorAccent;
+    const previousHeight = grid.rowHeight;
+    const source = (accent, size) => `
+      :root { --accent-indicator-color: ${accent}; --ui-font-size: ${size}px; }
+      .canvas-grid-live-variables-spec { --data-grid-row-height: calc(var(--ui-font-size) * 2); }
+    `;
+    const options = {
+      sourcePath: "canvas-grid-live-variables-spec",
+      priority: 10000,
+    };
+    let stylesheet;
+    try {
+      spyOn(grid, "flushDraw").and.callThrough();
+      stylesheet = lumine.styles.addStyleSheet(
+        source("rgb(10, 20, 30)", 20),
+        options,
+      );
+      await null;
+      expect(grid.colorAccent).toBe("rgb(10, 20, 30)");
+      expect(grid.rowHeight).toBe(40);
+      expect(grid.rowMetrics.sizeAt(0)).toBe(40);
+      expect(grid.flushDraw.calls.count()).toBe(1);
+      expect(frames.size).toBe(0);
+
+      grid.flushDraw.calls.reset();
+      stylesheet = lumine.styles.addStyleSheet(
+        source("rgb(40, 50, 60)", 22),
+        options,
+      );
+      await null;
+      expect(grid.colorAccent).toBe("rgb(40, 50, 60)");
+      expect(grid.rowHeight).toBe(44);
+      expect(grid.flushDraw.calls.count()).toBe(1);
+
+      grid.flushDraw.calls.reset();
+      stylesheet.dispose();
+      stylesheet = null;
+      await null;
+      expect(grid.colorAccent).toBe(previousAccent);
+      expect(grid.rowHeight).toBe(previousHeight);
+      expect(grid.flushDraw.calls.count()).toBe(1);
+    } finally {
+      stylesheet?.dispose();
+    }
   });
 
   it("renders only the visible window and finds columns through prefix offsets", () => {

@@ -46,7 +46,7 @@ Hosts can update callbacks and interaction flags with `updateOptions(patch)`, re
 
 `getViewportRect()`, `getCellRect(row, column)`, `getColumnRect(column)` and `getRowRect(row)` return DOMRect-like client coordinates; item rects also include `viewportX`, `viewportY` and `visible`. Use `onDidScroll`, `getScrollState` and `setScrollState` to synchronize an editor or another overlay, and use `measureText` with `getFontMetrics` instead of accessing the canvas context.
 
-In Lumine, the renderer inherits the shared `--data-grid-*` theme tokens for dimensions and semantic colors. A host can override one grid locally with the corresponding `--canvas-grid-*` token without changing the editor-wide table style.
+In Lumine, the renderer inherits the shared `--data-grid-*` theme tokens for dimensions and semantic colors. A host can override one grid locally with the corresponding `--canvas-grid-*` token without changing the editor-wide table style. Dimensions accept CSS lengths, including `em`, `rem`, and `calc()`; the attached grid resolves them to pixels. Colors are resolved through CSS too, including relative colors and `currentColor`.
 
 ## Exports
 
