@@ -48,6 +48,8 @@ Hosts can update callbacks and interaction flags with `updateOptions(patch)`, re
 
 In Lumine, the renderer inherits the shared `--data-grid-*` theme tokens for dimensions and semantic colors. A host can override one grid locally with the corresponding `--canvas-grid-*` token without changing the editor-wide table style. Dimensions accept CSS lengths, including `em`, `rem`, and `calc()`; the attached grid resolves them to pixels. Colors are resolved through CSS too, including relative colors and `currentColor`.
 
+When moving a grid between documents, call `grid.bindDocument(targetDocument)` to rebind resize observation, drawing, pointer capture and DPI while retaining rows, selection and scroll state. The constructor also accepts `document` for a grid created directly in another window.
+
 ## Exports
 
 - `CanvasGrid`: the canvas surface, interaction state and optional row cache.
