@@ -987,6 +987,55 @@ describe("CanvasGrid", () => {
     expect(grid.ariaCell.getAttribute("role")).toBe("rowheader");
   });
 
+  for (const platform of ["win32", "linux", "darwin"]) {
+    it(`copies only with the unmodified primary shortcut on ${platform}`, () => {
+      current = createGrid({
+        windowRows: [{ a: "alpha", b: "beta" }],
+        totalRows: 1,
+      });
+      const { grid } = current;
+      grid.moveActiveSelectionTo(0, 0);
+      const copy = spyOn(grid, "copySelection");
+      const descriptor = Object.getOwnPropertyDescriptor(process, "platform");
+      Object.defineProperty(process, "platform", {
+        ...descriptor,
+        value: platform,
+      });
+      try {
+        for (let modifiers = 0; modifiers < 16; modifiers++) {
+          copy.calls.reset();
+          const event = {
+            key: "c",
+            ctrlKey: Boolean(modifiers & 1),
+            metaKey: Boolean(modifiers & 2),
+            altKey: Boolean(modifiers & 4),
+            shiftKey: Boolean(modifiers & 8),
+            preventDefault: jasmine.createSpy("preventDefault"),
+            stopImmediatePropagation: jasmine.createSpy(
+              "stopImmediatePropagation",
+            ),
+          };
+          grid.handleKeyDown(event);
+          const expected =
+            modifiers === (platform === "darwin" ? 2 : 1) ? 1 : 0;
+          expect(copy.calls.count()).toBe(expected);
+          expect(event.preventDefault.calls.count()).toBe(expected);
+          expect(event.stopImmediatePropagation.calls.count()).toBe(expected);
+        }
+        grid.clearSelection();
+        copy.calls.reset();
+        grid.handleKeyDown({
+          key: "c",
+          ctrlKey: platform !== "darwin",
+          metaKey: platform === "darwin",
+        });
+        expect(copy).not.toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(process, "platform", descriptor);
+      }
+    });
+  }
+
   it("selects column headers normally and routes Alt-click and context sort actions to the host", () => {
     const sorts = [];
     let prevented = false;
