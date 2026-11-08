@@ -46,6 +46,8 @@ Hosts can update callbacks and interaction flags with `updateOptions(patch)`, re
 
 `getViewportRect()`, `getCellRect(row, column)`, `getColumnRect(column)` and `getRowRect(row)` return DOMRect-like client coordinates; item rects also include `viewportX`, `viewportY` and `visible`. Use `onDidScroll`, `getScrollState` and `setScrollState` to synchronize an editor or another overlay, and use `measureText` with `getFontMetrics` instead of accessing the canvas context.
 
+`onDidNavigate(callback)` reports a handled navigation or reveal attempt, including a target already visible or clamped at a boundary. Nested navigation methods emit once; focus, drawing, resizing and state restoration do not emit. Dispose the returned subscription with the host view. A host can use this signal to briefly reveal its scrollbar without coupling the grid to a particular scrollbar implementation.
+
 Call `setScrollEndInset(pixels)` with the height of an overflowing horizontal overlay scrollbar so the final row can scroll above it. The grid extends its own physical scroll range and uses the unobscured height for cell reveal while keeping the full canvas viewport. Pass zero when horizontal overflow ends or the scrollbar already occupies a reserved gutter.
 
 In Lumine, the renderer inherits the shared `--data-grid-*` theme tokens for dimensions and semantic colors. A host can override one grid locally with the corresponding `--canvas-grid-*` token without changing the editor-wide table style. Dimensions accept CSS lengths, including `em`, `rem`, and `calc()`; the attached grid resolves them to pixels. Colors are resolved through CSS too, including relative colors and `currentColor`.

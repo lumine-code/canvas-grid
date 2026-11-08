@@ -1286,6 +1286,63 @@ describe("CanvasGrid", () => {
     expect(grid.getColumnRect(0)).not.toBeNull();
   });
 
+  it("reports one handled navigation even when a boundary does not move or scroll", () => {
+    current = createGrid({ windowRows: [{ a: 1, b: 2 }], totalRows: 1 });
+    const { grid } = current;
+    grid.moveActiveSelectionTo(0, 1);
+    const navigation = jasmine.createSpy("navigation activity");
+    const subscription = grid.onDidNavigate(navigation);
+    const before = grid.getScrollState();
+    grid.moveActiveSelection(1, 0);
+    expect(navigation).toHaveBeenCalledTimes(1);
+    expect(grid.getScrollState()).toEqual(before);
+    grid.navigate(0, -1);
+    expect(navigation).toHaveBeenCalledTimes(2);
+    grid.revealCell({ row: 0, column: 0 });
+    expect(navigation).toHaveBeenCalledTimes(3);
+    grid.selectCells([{ row: 0, column: 0 }]);
+    expect(navigation).toHaveBeenCalledTimes(4);
+    grid.selectAll();
+    expect(navigation).toHaveBeenCalledTimes(5);
+    subscription.dispose();
+    grid.revealCell({ row: 0, column: 0 });
+    expect(navigation).toHaveBeenCalledTimes(5);
+  });
+
+  it("reports repeated pending keyset navigation without waiting for another row window", () => {
+    current = createGrid({
+      windowRows: [{ a: 1, b: 2 }],
+      totalRows: 2,
+      hasNext: true,
+      onNeedNext: () => undefined,
+    });
+    const { grid } = current;
+    const navigation = jasmine.createSpy("navigation activity");
+    grid.onDidNavigate(navigation);
+    grid.moveActiveSelection(1, 0);
+    grid.moveActiveSelection(1, 0);
+    expect(navigation).toHaveBeenCalledTimes(2);
+    expect(grid.requestedNext).toBeTrue();
+  });
+
+  it("does not report focus, drawing, resizing or restored state as navigation", () => {
+    current = createGrid({ windowRows: [{ a: 1, b: 2 }], totalRows: 1 });
+    const { grid, frames } = current;
+    const navigation = jasmine.createSpy("navigation activity");
+    grid.onDidNavigate(navigation);
+    grid.focus();
+    grid.resize(240, 100);
+    grid.restoreState(grid.captureState());
+    grid.setWindow({ rows: [{ a: 1, b: 2 }], baseRow: 0, totalRows: 1 });
+    grid.scheduleDraw();
+    frames.flush();
+    expect(navigation).not.toHaveBeenCalled();
+    grid.destroy();
+    expect(grid.navigationCallbacks.size).toBe(0);
+    grid.navigate(1, 0);
+    expect(navigation).not.toHaveBeenCalled();
+  });
+
   it("owns row metrics and column widths through explicit facade methods", () => {
     current = createGrid({
       windowRows: [
